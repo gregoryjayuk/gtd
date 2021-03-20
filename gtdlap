@@ -1,0 +1,526 @@
+#!/bin/bash
+
+# Goals of Script
+
+# DONE CREATE PRIORITY SELECTION MODE
+# FIND a use for empty projects
+# ADD add edit delete and complete options to goals
+# ADD add edit delete and complete options to AoF
+# ADD change context options into someday section
+# DONE Add list of tasks with project tag after selecting a tag
+# DONE Be able to DO EDIT DELETE etc with the tasks with project tag
+# Add All Horizons
+# Stay todo.txt compliant
+# DONE Be able to Quickly Process Tasks
+# DONE See Tasks by Context
+# DONE Complete task 
+# DONE See Project List
+# DONE Add to Project List
+# DONE Complete Project
+# DONE Add tasks to Project
+# Add Times before tasks/projects in file but not have them show up in dmenu
+# Calendar Intergration
+# Plan AOF Module
+# DONE List Module
+# DONE Add options into Process to add Context/Projects instead of just using edit
+# DONE Change the PROJSEL Sections in other contects to match the one in Process (/PROJESEL to see what needs doing)
+# DONE Use qq to come straight out of task menus
+while [[ $OPTION != "qq" ]]
+do
+OPTION=$(echo -e "Get Clear\npriority\nprojects\ntasks\nwaiting for...\ncalendar\nsomeday\ngoals\narchive\nAoF\nlists" | dmenu )
+FUNCTION="NONE"
+
+if [[ $OPTION == "archive" ]]
+then
+	ARCHIVED=$(grep "^x " ~/.GTD/tasks)
+	echo "$ARCHIVED" >> ~/.GTD/donetasks
+	notify-send -t 10000 "Archived $ARCHIVED"
+	sed -i "/^x\s/d" ~/.GTD/tasks
+	
+elif [[ $OPTION == "Get Clear" ]]
+then
+	while [[ $FUNCTION != "qq" ]]
+	do
+		FUNCTION=$(echo "" | dmenu -z 500)
+		if [[ $FUNCTION != "qq" ]]
+		then
+			echo "$FUNCTION" >> ~/.GTD/tasks
+			notify-send "Task Added: $FUNCTION"
+		fi
+	done
+
+elif [[ $OPTION == "projects" ]]
+then
+	PROJECT="None"
+	picom & conky -q -c ~/scripts/conkyprojects
+while [[ $PROJECT != "qq" ]]
+do
+	PROJECT=$(cat ~/.GTD/projectlist | dmenu -z 600 -l 20)
+
+	if [[ $PROJECT == "done" ]]
+	then
+		DONEPROJECT=$(cat ~/.GTD/projectlist | dmenu -z 600 -l 20)
+		echo "$DONEPROJECT" >> ~/.GTD/doneprojects
+		sed -i "/$DONEPROJECT/d" ~/.GTD/projectlist
+		notify-send "Project Completed: $DONEPROJECT"
+
+	elif [[ $PROJECT == "qq" ]]
+	then
+		break
+		
+	elif [[ $PROJECT == "add" ]]
+	then
+		NEWPROJ=$(echo "" | dmenu -z 500 -l 5 -p "Add: ")
+		echo $NEWPROJ >> ~/.GTD/projectlist
+	
+	elif	[[ $PROJECT == "delete" ]]
+	then
+		DELPROJ=$(cat ~/.GTD/projectlist | dmenu -z 600 -l 20 -p "Delete: ")
+		sed -i "/$DELPROJ/d" ~/.GTD/projectlist
+		notify-send "$DELPROJ deleted"
+
+	elif [[ $PROJECT == "edit" ]]
+	then
+		EDITPROJ=$(cat ~/.GTD/projectlist | dmenu -z 600 -l 20)
+		EDITEDPROJ=$(echo "$EDITPROJ" | dmenu -z 600 -p "Edit: ")
+		if [[ $EDITEDPROJ == "qq" ]]
+		then
+			:
+			notify-send "No Edit: Exited"
+		else
+			sed -i "s/$EDITPROJ/$EDITEDPROJ/g" ~/.GTD/projectlist
+		fi
+	else
+		CHOICE=$(echo -e "brainstorm & plan\nlist tasks" | dmenu -z 700)
+		if [[ $CHOICE == "qq" ]]
+		then
+			break
+		elif [[ $CHOICE == "list tasks" ]]
+		then
+			CHOSENTASK="None"	
+			while [[ $CHOSENTASK != "qq" ]]
+			do
+				CHOSENTASK=$(grep +$PROJECT ~/.GTD/tasks | dmenu -z 500 -l 10)
+				if [[ $CHOSENTASK == "qq" ]]
+				then
+					break
+				fi
+				if [[ $CHOSENTASK == "add" ]]
+				then
+					NEWPROJTASK=$(echo "" | dmenu -z 500 -p "Add Task:")
+					if [[ $NEWPROJTASK == "qq" ]]
+					then
+						break
+					fi
+					NEWPROJTASK=$(echo "$NEWPROJTASK +$PROJECT")
+					echo "$NEWPROJTASK" >> ~/.GTD/tasks
+					notify-send "Added $NEWPROJTASK"
+				else
+					PROJOPTION=$(echo -e "edit\ndone\nDelete" | dmenu -z 500)
+					if [[ $PROJOPTION == "edit" ]]
+					then
+						EDITEDTASK=$(echo "$CHOSENTASK" | dmenu)
+						notify-send "Edited $EDITEDTASK"	
+						if [[ $NEWLINE == "qq" ]]
+						then
+							notify-send "exited no changes"
+							:
+						else
+							sed -i "s/$CHOSENTASK/$EDITEDTASK/g" ~/.GTD/tasks
+						fi
+
+					elif [[ $PROJOPTION == "done" ]]
+					then
+						sed -i "s/$CHOSENTASK/x $CHOSENTASK/g" ~/.GTD/tasks
+						notify-send "Done: $CHOSENTASK"
+					elif [[ $PROJOPTION == "Delete" ]]
+					then
+						sed -i "/$CHOSENTASK/d" ~/.GTD/tasks
+						notify-send "Deleted: $CHOSENTASK"
+					elif [[ $PROJOPTION == "qq" ]]
+					then
+						break
+					fi
+				fi
+		
+		done
+		elif [[ $CHOICE == "brainstorm & plan" ]]
+		then
+
+			PROJTASKS=$(grep -v "^[[:space:]]*$" ~/.GTD/tasks | grep +$PROJECT)
+			#nvim -c "lefta vsplit ~/.GTD/projectlist" ~/.GTD/Projects/$PROJECT
+			echo -e "Tasks in .GTD/tasks\n$PROJTASKS" | nvim -c "lefta vsplit ~/.GTD/Projects/$PROJECT"
+		fi
+	fi
+done
+
+elif [[ $OPTION == "tasks" ]]
+then
+	CONTEXT="None"
+while [[ $CONTEXT != "qq" ]]
+do
+	CONTEXT=$(echo -e "process\nhome\ncomputer\nall\nsomeday" | dmenu -z 200 -l 5)
+	FUNCTION="None"
+
+	if [[ $CONTEXT == "process" ]]
+	then
+	while [[ $FUNCTION != "qq" || $LINE != "qq" ]]
+	do
+		LINE=$(grep -v "^[[:space:]]*$" ~/.GTD/tasks | grep -v @ | dmenu -z 500 -l 20)
+		if [[ $LINE == "qq" ]]
+		then
+			break
+		fi
+		FUNCTION=$(echo -e "Done\n@Home\n@Computer\n+Project\nEdit\nDelete\nMake Project\nSomeday" | dmenu -z 600)
+		
+		if [[ $FUNCTION == "+Project" ]]
+		then
+			PROJLIST=$(cat ~/.GTD/projectlist)
+			SELPROJ=$(echo "$PROJLIST" | dmenu -z 500 -l 20)
+			PROJEXISTCHECK=$(cat ~/.GTD/projectlist | grep "$SELPROJ" | wc -l)
+			echo "Projectextist number $PROJEXISTCHECK"
+			if [[ $PROJEXISTCHECK == 1 ]]
+			then
+				sed -i "s/$LINE/$LINE +$SELPROJ/g" ~/.GTD/tasks
+				notify-send "$LINE added to project: $SELPROJ"
+			else
+				echo "$SELPROJ" >> ~/.GTD/projectlist
+				sed -i "s/$LINE/$LINE +$SELPROJ/g" ~/.GTD/tasks
+				notify-send "New Project created: $SELPROJ"
+				notify-send "$LINE added to project $SELPROJ"
+			fi
+		elif [[ $FUNCTION == "@Computer" ]]
+		then
+			sed -i "s/$LINE/$LINE @Computer/g" ~/.GTD/tasks
+			notify-send "$LINE added to @Computer"
+		elif [[ $FUNCTION == "@Home" ]]
+		then
+			sed -i "s/$LINE/$LINE @Home/g" ~/.GTD/tasks
+			notify-send "$LINE added to @Home"
+		elif [[ $FUNCTION == "Done" ]]
+		then
+			sed -i "s/$LINE/x $LINE/g" ~/.GTD/tasks
+			notify-send "$LINE Done"
+		elif [[ $FUNCTION == "Edit" ]]
+		then
+			NEWLINE=$(echo $LINE | dmenu)
+			notify-send "Edited $NEWLINE"	
+			#Remove this?
+			if [[ $NEWLINE == "qq" ]]
+			then
+				notify-send "exited no changes"
+				:
+			else
+				sed -i "s/$LINE/$NEWLINE/g" ~/.GTD/tasks
+			fi
+		elif [[ $FUNCTION == "Delete" ]]
+		then
+			sed -i "/$LINE/d" ~/.GTD/tasks
+			notify-send "$LINE Deleted"
+		
+		elif [[ $FUNCTION == "Make Project" ]]
+		then
+			sed -i "/$LINE/d" ~/.GTD/tasks
+			NEWLINE=$(echo "$LINE" | dmenu -z 500)
+			echo "$NEWLINE" >> ~/.GTD/projectlist
+			notify-send "New Project: $NEWLINE"
+		
+		elif [[ $FUNCTION == "Someday" ]]
+		then
+			WHEN=$(echo -e "notnow\nSomeday\nnextyear" | dmenu -z 500)
+			sed -i "s/$LINE/$LINE @$WHEN/g" ~/.GTD/tasks
+			notify-send "$LINE Added to $WHEN"
+		
+		elif [[ $FUNCTION == "qq" ]]
+		then
+			break
+		fi
+	done
+	elif [[ $CONTEXT == "home" ]]
+	then	
+	while [[ $FUNCTION != "qq" || $LINE != "qq" ]]
+	do	
+		LINE=$(grep -v "^[[:space:]]*$" ~/.GTD/tasks | grep @Home | dmenu -z 600 -l 20)
+
+		if [[ $LINE == "qq" ]]
+		then
+			break
+		fi
+		FUNCTION=$(echo -e "Done\nEdit\nDelete\n+Project\nSomeday"| dmenu)
+
+		if [[ $FUNCTION == "+Project" ]]
+		then
+			PROJLIST=$(cat ~/.GTD/projectlist)
+			SELPROJ=$(echo "$PROJLIST" | dmenu -z 500 -l 20)
+			PROJEXISTCHECK=$(cat ~/.GTD/projectlist | grep "$SELPROJ" | wc -l)
+			echo "Projectextist number $PROJEXISTCHECK"
+			if [[ $PROJEXISTCHECK == 1 ]]
+			then
+				sed -i "s/$LINE/$LINE +$SELPROJ/g" ~/.GTD/tasks
+				notify-send "$LINE added to project: $SELPROJ"
+			else
+				echo "$SELPROJ" >> ~/.GTD/projectlist
+				sed -i "s/$LINE/$LINE +$SELPROJ/g" ~/.GTD/tasks
+				notify-send "New Project created: $SELPROJ"
+				notify-send "$LINE added to project $SELPROJ"
+			fi
+
+		elif [[ $FUNCTION == "Done" ]]
+		then
+			sed -i "s/$LINE/x $LINE/g" ~/.GTD/tasks
+			notify-send "$LINE Done"
+
+		elif [[ $FUNCTION == "Edit" ]]
+		then
+			NEWLINE=$(echo $LINE | dmenu)
+			notify-send "Edited $NEWLINE"	
+			sed -i "s/$LINE/$NEWLINE/g" ~/.GTD/tasks
+		elif [[ $FUNCTION == "Delete" ]]
+		then
+			sed -i "/$LINE/d" ~/.GTD/tasks
+			notify-send "$LINE Deleted"
+
+		elif [[ $FUNCTION == "Someday" ]]
+		then
+			WHEN=$(echo -e "notnow\nSomeday\nnextyear" | dmenu -z 500)
+			#NEED TO REMOVE THE @HOME FIRST
+			NOHOMELINE=${LINE//@Home/}
+			sed -i "s/$LINE/$NOHOMELINE @$WHEN/g" ~/.GTD/tasks
+			notify-send "$LINE Added to $WHEN"
+
+		elif [[ $FUNCTION == "qq" ]]
+		then
+			break
+		fi
+
+	done
+	elif [[ $CONTEXT == "computer" ]]
+	then
+	while [[ $FUNCTION != "qq" || $LINE != "qq" ]]
+	do
+		LINE=$(grep -v "^[[:space:]]*$" ~/.GTD/tasks | grep @Computer | dmenu -z 600 -l 20)
+		if [[ $LINE == "qq" ]]
+		then
+			break
+		fi
+		FUNCTION=$(echo -e "Done\nEdit\nDelete\n+Project\nSomeday" | dmenu)
+
+		if [[ $FUNCTION == "+Project" ]]
+		then
+			PROJLIST=$(cat ~/.GTD/projectlist)
+			SELPROJ=$(echo "$PROJLIST" | dmenu -z 500 -l 20)
+			PROJEXISTCHECK=$(cat ~/.GTD/projectlist | grep "$SELPROJ" | wc -l)
+			echo "Projectextist number $PROJEXISTCHECK"
+			if [[ $PROJEXISTCHECK == 1 ]]
+			then
+				sed -i "s/$LINE/$LINE +$SELPROJ/g" ~/.GTD/tasks
+				notify-send "$LINE added to project: $SELPROJ"
+			else
+				echo "$SELPROJ" >> ~/.GTD/projectlist
+				sed -i "s/$LINE/$LINE +$SELPROJ/g" ~/.GTD/tasks
+				notify-send "New Project created: $SELPROJ"
+				notify-send "$LINE added to project $SELPROJ"
+			fi
+		elif [[ $FUNCTION == "Done" ]]
+		then
+			sed -i "s/$LINE/x $LINE/g" ~/.GTD/tasks
+			notify-send "$LINE Done"
+
+		elif [[ $FUNCTION == "Edit" ]]
+		then
+			NEWLINE=$(echo $LINE | dmenu)
+			notify-send "Edited $NEWLINE"	
+			sed -i "s/$LINE/$NEWLINE/g" ~/.GTD/tasks
+
+		elif [[ $FUNCTION == "Delete" ]]
+		then
+			sed -i "/$LINE/d" ~/.GTD/tasks
+			notify-send "$LINE Deleted"
+
+		elif [[ $FUNCTION == "Someday" ]]
+		then
+			WHEN=$(echo -e "notnow\nSomeday\nnextyear" | dmenu -z 500)
+			#NEED TO REMOVE THE @COMPUTER FIRST
+			NOCOMPUTERLINE=${LINE//@Computer/}	
+			sed -i "s/$LINE/$NOCOMPUTERLINE @$WHEN/g" ~/.GTD/tasks
+			notify-send "$LINE Added to $WHEN"
+
+		elif [[ $FUNCTION == "qq" ]]
+		then
+			break
+		###CONTINUE HERE	
+	
+		fi
+	done
+	elif [[ $CONTEXT == "all" ]]
+	then
+	while [[ $FUNCTION != "qq" || $LINE != "qq" ]]
+	do
+		LINE=$(grep -v "^[[:space:]]*$" ~/.GTD/tasks | dmenu -z 500 -l 20)
+		if [[ $LINE == "qq" ]]
+		then
+			break
+		fi
+		FUNCTION=$(echo -e "Done\nEdit\nDelete\n+Project" | dmenu)
+
+		if [[ $FUNCTION == "+Project" ]]
+		then
+			PROJLIST=$(cat ~/.GTD/projectlist)
+			SELPROJ=$(echo "$PROJLIST" | dmenu -z 500 -l 20)
+			PROJEXISTCHECK=$(cat ~/.GTD/projectlist | grep "$SELPROJ" | wc -l)
+			echo "Projectextist number $PROJEXISTCHECK"
+			if [[ $PROJEXISTCHECK == 1 ]]
+			then
+				sed -i "s/$LINE/$LINE +$SELPROJ/g" ~/.GTD/tasks
+				notify-send "$LINE added to project: $SELPROJ"
+			else
+				echo "$SELPROJ" >> ~/.GTD/projectlist
+				sed -i "s/$LINE/$LINE +$SELPROJ/g" ~/.GTD/tasks
+				notify-send "New Project created: $SELPROJ"
+				notify-send "$LINE added to project $SELPROJ"
+			fi
+		elif [[ $FUNCTION == "Done" ]]
+		then
+			sed -i "s/$LINE/x $LINE/g" ~/.GTD/tasks
+			notify-send "$LINE Done"
+
+		elif [[ $FUNCTION == "Edit" ]]
+		then
+			NEWLINE=$(echo $LINE | dmenu)
+			notify-send "Edited $NEWLINE"	
+			sed -i "s/$LINE/$NEWLINE/g" ~/.GTD/tasks
+
+		elif [[ $FUNCTION == "Delete" ]]
+		then
+			sed -i "/$LINE/d" ~/.GTD/tasks
+			notify-send "$LINE Deleted"
+
+
+		elif [[ $FUNCTION == "qq" ]]
+		then
+			break
+
+		fi
+	done
+	elif [[ $CONTEXT == "someday" ]]
+	then
+	while [[ $FUNCTION != "qq" || $LINE != "qq" ]]
+	do
+		LINE=$(grep -v "^[[:space:]]*$" ~/.GTD/tasks | grep -e @Someday -e @notnow -e @nextyear | dmenu -z 500 -l 20)
+		if [[ $LINE == "qq" ]]
+		then
+			break
+		fi
+		FUNCTION=$(echo -e "Done\nEdit\nDelete\n+Project" | dmenu)
+
+		if [[ $FUNCTION == "+Project" ]]
+		then
+			PROJLIST=$(cat ~/.GTD/projectlist)
+			SELPROJ=$(echo "$PROJLIST" | dmenu -z 500 -l 20)
+			PROJEXISTCHECK=$(cat ~/.GTD/projectlist | grep "$SELPROJ" | wc -l)
+			echo "Projectextist number $PROJEXISTCHECK"
+			if [[ $PROJEXISTCHECK == 1 ]]
+			then
+				sed -i "s/$LINE/$LINE +$SELPROJ/g" ~/.GTD/tasks
+				notify-send "$LINE added to project: $SELPROJ"
+			else
+				echo "$SELPROJ" >> ~/.GTD/projectlist
+				sed -i "s/$LINE/$LINE +$SELPROJ/g" ~/.GTD/tasks
+				notify-send "New Project created: $SELPROJ"
+				notify-send "$LINE added to project $SELPROJ"
+			fi
+		elif [[ $FUNCTION == "Done" ]]
+		then
+			sed -i "s/$LINE/x $LINE/g" ~/.GTD/tasks
+			notify-send "$LINE Done"
+
+		elif [[ $FUNCTION == "Edit" ]]
+		then
+			NEWLINE=$(echo $LINE | dmenu)
+			notify-send "Edited $NEWLINE"	
+			sed -i "s/$LINE/$NEWLINE/g" ~/.GTD/tasks
+
+		elif [[ $FUNCTION == "Delete" ]]
+		then
+			sed -i "/$LINE/d" ~/.GTD/tasks
+			notify-send "$LINE Deleted"
+
+
+		elif [[ $FUNCTION == "qq" ]]
+		then
+			break
+
+		fi
+	done
+
+	
+	fi
+
+done
+
+elif [[ $OPTION == "someday" ]]
+then
+	SOMEDAYTASK=$(grep -e @Someday -e @notnow -e @nextyear ~/.GTD/tasks | dmenu -z 600 -l 20)
+	if [[ $SOMEDAYTASK != "qq" ]]
+	then
+		NEWSOMEDAYTASK=$(echo $SOMEDAYTASK | dmenu -p "Edit: ")
+		sed -i "s/$SOMEDAYTASK/$NEWSOMEDAYTASK/g" ~/.GTD/tasks
+	fi
+elif [[ $OPTION == "AoF" ]]
+then
+	cat ~/.GTD/aof | dmenu -z 500 -l 20
+
+elif [[ $OPTION == "goals" ]]
+then
+	WHICHGOALS=$(echo -e "short\nlong" | dmenu -z 600)
+	if [[ $WHICHGOALS != "qq" ]]
+	then
+		if [[ $WHICHGOALS == "short" ]]
+		then
+			cat ~/.GTD/shortgoals | dmenu -z 600 -l 20
+		fi
+		if [[ $WHICHGOALS == "long" ]]
+		then
+			cat ~/.GTD/longgoals | dmenu -z 600 -l 20
+
+		fi
+	fi
+elif [[ $OPTION == "priority" ]]
+then
+	PRIO=$(grep -e @Home -e @Computer ~/.GTD/tasks | dmenu -l 20)
+	sed -i "s/$PRIO/(A) $PRIO/g" ~/.GTD/tasks
+
+elif [[ $OPTION == "lists" ]]
+then
+	LIST=$(ls ~/.GTD/Lists/ | dmenu -z 500 -l 20)
+	if [[ $LIST == "add" ]]
+	then
+		ADDLIST=$(echo "" | dmenu -z 600 -p "name: ")
+		$TERMINAL -e nvim ~/.GTD/Lists/"$ADDLIST"
+	elif [[ $LIST == "delete" ]]
+	then
+		DELLIST=$(ls ~/.GTD/Lists/ | dmenu -z 500 -l 20)
+		rm ~/.GTD/Lists/"$DELLIST"
+	else
+		$TERMINAL -e nvim ~/.GTD/Lists/"$LIST"
+	fi
+fi
+done
+while read line;
+do
+        HASPROJ=$(echo "$line" | grep "+" | wc -l)
+        if [[ $HASPROJ -gt 0 ]]
+        then
+                GOTPROJ=$(echo "$line" | cut -d'+' -f 2 | cut -d' ' -f 1)
+                PROJEXISTS=$(cat ~/.GTD/projectlist | grep "$GOTPROJ" | wc -l)
+                if [[ $PROJEXISTS == 0 ]]
+                then
+                        echo "$GOTPROJ" >> ~/.GTD/projectlist
+                        notify-send "Added to projectlist: $GOTPROJ"
+                fi
+
+        fi
+done <~/.GTD/tasks
+pkill picom
+pkill conky
+notify-send "Exited"
